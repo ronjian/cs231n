@@ -125,3 +125,25 @@ def grad_check_sparse(f, x, analytic_grad, num_checks=10, h=1e-5):
     rel_error = abs(grad_numerical - grad_analytic) / (abs(grad_numerical) + abs(grad_analytic))
     print('numerical: %f analytic: %f, relative error: %e' % (grad_numerical, grad_analytic, rel_error))
 
+def grad_check_sparse2(f, x, analytic_grad, num_checks=10, h=1e-5):
+  """
+  sample a few random elements and only return numerical
+  in this dimensions.
+  """
+
+  for i in xrange(x.shape[0]):
+    for j in xrange(x.shape[1]):
+      ix = (i, j)
+  
+      oldval = x[ix]
+      x[ix] = oldval + h # increment by h
+      fxph = f(x) # evaluate f(x + h)
+      x[ix] = oldval - h # increment by h
+      fxmh = f(x) # evaluate f(x - h)
+      x[ix] = oldval # reset
+  
+      grad_numerical = (fxph - fxmh) / (2 * h)
+      grad_analytic = analytic_grad[ix]
+      rel_error = abs(grad_numerical - grad_analytic) / (abs(grad_numerical) + abs(grad_analytic))
+      if rel_error > 1e-02 :
+        print('at %s, numerical: %f analytic: %f, relative error: %e' % (ix, grad_numerical, grad_analytic, rel_error))
