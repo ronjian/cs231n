@@ -205,7 +205,16 @@ class FullyConnectedNet(object):
         for i in range(self.num_layers):
             self.params['W'+str(i+1)] = weight_scale * np.random.randn(last_hidden_dim, hidden_dims[i])
             self.params['b'+str(i+1)] = np.zeros(hidden_dims[i])
+            
+            if self.use_batchnorm and i<self.num_layers-1:
+                #- gamma: Scale parameter of shape (D,),Scale parameters should be initialized to one
+                self.params['gamma'+str(i+1)] = np.ones((hidden_dims[i],))
+                #- beta: Shift paremeter of shape (D,), shift parameters should be initialized to zero
+                self.params['beta'+str(i+1)] = np.zeros((hidden_dims[i],))
+            
             last_hidden_dim = hidden_dims[i]
+            
+                
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -267,13 +276,27 @@ class FullyConnectedNet(object):
         scores = X
         cache_affine_l = []
         cache_relu_l = []
+        cache_bn_l = []
+        cache_dropout_l = []
         for i in range(self.num_layers):
             W = self.params['W'+str(i+1)]
             b = self.params['b'+str(i+1)]
+            #affine
             scores, cache_affine = affine_forward(scores, W, b)
-            scores, cache_relu = relu_forward(scores)
             cache_affine_l.append(cache_affine)
+            #batch normalization
+            if self.use_batchnorm and i<self.num_layers-1 :
+                gamma = self.params['gamma'+str(i+1)]
+                beta = self.params['beta'+str(i+1)]
+                scores, cache_bn = batchnorm_forward(scores, gamma, beta, self.bn_params[i])
+                cache_bn_l.append(cache_bn)
+            #relu
+            scores, cache_relu = relu_forward(scores)
             cache_relu_l.append(cache_relu)
+            if self.use_dropout:
+                #dropout
+                scores, cache_dropout = dropout_forward(scores, self.dropout_param)
+                cache_dropout_l.append(cache_dropout)
 
         ############################################################################
         #                             END OF YOUR CODE                             #
@@ -308,7 +331,17 @@ class FullyConnectedNet(object):
         loss += 0.5 * self.reg * L2_reg
 
         for i in range(self.num_layers,0,-1):
+            if self.use_dropout:
+                #dropout
+                dx = dropout_backward(dx, cache_dropout_l[i-1])
+            #relu
             dx = relu_backward(dx, cache_relu_l[i-1])
+            #batch normalization
+            if self.use_batchnorm and i < self.num_layers:
+                dx, dgamma, dbeta = batchnorm_backward(dx, cache_bn_l[i-1])
+                grads['gamma'+str(i)] = dgamma
+                grads['beta'+str(i)] = dbeta
+            #affine
             dx , dw, db = affine_backward(dx, cache_affine_l[i-1])
             grads['W'+str(i)] = dw + self.reg * self.params['W'+str(i)]
             grads['b'+str(i)] = db
